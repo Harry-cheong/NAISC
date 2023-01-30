@@ -12,7 +12,7 @@ from sgnlp.models.sentic_gcn import(
 from string import punctuation
 import re
 import torch
-import numpy as np
+import torch.nn.functional as F
 
 class Discerner(torch.nn.Module):
     def __init__(self):
@@ -26,7 +26,7 @@ class Discerner(torch.nn.Module):
         embed_model = SenticGCNBertEmbeddingModel.from_pretrained("bert-base-uncased", config=embed_config)
         self.sentimentpreprocessor = SenticGCNBertPreprocessor(tokenizer=tokenizer, embedding_model=embed_model, senticnet="https://storage.googleapis.com/sgnlp/models/sentic_gcn/senticnet.pickle", device="cpu")
         self.clip_model, self.imagepreprocessor = clip.load('ViT-B/32', jit=False)
-        self.imagetextfeatures = torch.nn.Sequential(torch.nn.Linear(512*2,768), torch.nn.GELU(), torch.nn.Linear(768,512), torch.nn.GELU())
+        self.imagetextfeatures = torch.nn.Sequential(torch.nn.Linear(1025,768), torch.nn.GELU(), torch.nn.Linear(768,512), torch.nn.GELU())
         self.sentiment_gru = torch.nn.GRU(input_size=3, hidden_size=3,batch_first=True)
         self.sentiment_attitude_corr=torch.nn.Sequential(torch.nn.Linear(4,258),torch.nn.GELU(),torch.nn.Linear(258,512),torch.nn.GELU())
         self.discern=torch.nn.Sequential(torch.nn.Linear(1024,512),torch.nn.GELU(),torch.nn.Linear(512,1))
@@ -38,7 +38,8 @@ class Discerner(torch.nn.Module):
         
         image_features = self.clip_model.encode_image(torch.cat([self.imagepreprocessor(im).unsqueeze(0) for im in image]))
         text_features = self.clip_model.encode_text(clip.tokenize(statement))
-        clip_features = self.imagetextfeatures(torch.cat((image_features,text_features),dim=1))
+        features_simularity=F.cosine_similarity(image_features,text_features,dim=1).unsqueeze(1)
+        clip_features = self.imagetextfeatures(torch.cat([image_features,text_features,features_simularity],dim=1))
 
         inputs=[]
         inputs_aspect_count=[]

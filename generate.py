@@ -12,7 +12,7 @@ class Generator(torch.nn.Module):
         hidden_size=self.embeds.embedding_dim
         self.features_to_embed=torch.nn.Sequential(torch.nn.Linear(feature_size+1,(feature_size+hidden_size+1)//2),torch.nn.GELU(),torch.nn.Linear((feature_size+hidden_size+1)//2,hidden_size))
     
-    def forward(self, image_features, attitude, starting_text = None, max_length = 10, temperature = 1.0, return_probs = False):
+    def forward(self, image_features, attitude, starting_text = None, max_length = 10, temperature = 1.0, return_probs = False, echo_input_text = False):
 
         if starting_text==None:
             starting_text = ['']*len(attitude)
@@ -20,35 +20,45 @@ class Generator(torch.nn.Module):
         if not (len(image_features)==len(attitude)==len(starting_text)):
             raise ValueError('Batch size must be equal across all arguments')
 
-        out_text=starting_text
-        all_new_toks=torch.tensor([[]]*len(attitude),dtype=torch.int)
-        out_probs=[]
-        for _ in range(max_length):
-            in_embeds, mask=self._generate_embeddings_and_masks(out_text,image_features,attitude)
+        tokens=self.tokens(starting_text,padding=True,return_tensors='pt')
+        all_new_toks,mask=tokens['input_ids'],torch.cat([torch.ones(len(attitude),1),tokens['attention_mask']],dim=1)
+        out_probs=torch.tensor([[]]*len(attitude))
+
+        for i in range(max_length):
+            in_embeds=self._generate_embeddings_and_masks(all_new_toks,image_features,attitude,input_is_tokens=True)
             new_tok_logits=self.text_model(inputs_embeds=in_embeds,attention_mask=mask).logits[:,-1,:]
             tok_probs=F.gumbel_softmax(new_tok_logits,tau=temperature,dim=-1)
             new_toks=torch.distributions.categorical.Categorical(probs=tok_probs).sample().unsqueeze(1)
             if return_probs:
-                out_probs.append(torch.gather(tok_probs, 1, new_toks))
+                out_probs=torch.cat([out_probs, torch.gather(tok_probs, 1, new_toks)],dim=1)
             all_new_toks=torch.cat([all_new_toks,new_toks],dim=1)
-            new_text=self.tokens.batch_decode(new_toks)
-            out_text=[old+new for old, new in zip(out_text,new_text)]
-            if all((self.tokens.eos_token_id in toks) for toks in all_new_toks):
+            if all((self.tokens.eos_token_id in toks[1:]) for toks in all_new_toks):
                 break
-        out_text=[text.split(self.tokens.eos_token)[0] for text in out_text]
+            mask=torch.cat([mask,torch.ones(len(mask),1)],dim=1)
+        all_new_toks=all_new_toks[:,1:]
+        if not echo_input_text:
+            all_new_toks=all_new_toks[:,(-i-1):]
+        all_new_toks=[toks[:(toks == self.tokens.eos_token_id).nonzero(as_tuple=True)[0]] for toks in all_new_toks]
         if not return_probs:
-            return out_text
-        out_probs=[prob[:len(toks)] for toks,prob in zip(all_new_toks,torch.cat(out_probs,dim=1))]
+            return [self.tokens.decode(toks,skip_special_tokens=True) for toks in all_new_toks]
         return all_new_toks, out_probs
         
             
-    def _generate_embeddings_and_masks(self, previous_text, image_features, attitude):
+    def _generate_embeddings_and_masks(self, previous_text, image_features, attitude, input_is_tokens=False):
         features=torch.cat([image_features,attitude],dim=1)
-        toks=self.tokens(previous_text,padding=True,return_tensors='pt')
+        if input_is_tokens:
+            toks={'input_ids':previous_text}
+        else:
+            toks=self.tokens(previous_text,padding=True,return_tensors='pt')
         previous_embed=self.embeds(toks['input_ids'])
         starting_embed=self.features_to_embed(features).unsqueeze(1)
-        #return previous_embed, toks['attention_mask']                      this is for if you dont want the image or attitude to affect text generation
-        return torch.cat([starting_embed,previous_embed],dim=1), torch.cat([toks['attention_mask'],torch.ones(len(attitude),1)],dim=1)
+        #this is for if you dont want the image or attitude to affect text generation
+        # if input_is_tokens:
+        #     return previous_embed
+        # return previous_embed, toks['attention_mask']
+        if input_is_tokens:
+            return torch.cat([starting_embed,previous_embed],dim=1)
+        return torch.cat([starting_embed,previous_embed],dim=1), torch.cat([torch.ones(len(attitude),1),toks['attention_mask']],dim=1)
         
 
 
