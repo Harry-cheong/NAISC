@@ -1,12 +1,13 @@
 import torch
+from preprocess_image import Preprocessor
 from discern import Discerner
 from generate import Generator
-from preprocess_image import Preprocessor
 from PIL import Image
 import itertools
 
 ImageOnlyDataset=itertools.repeat(Image.open('people.webp')) #Random images contating one person, should output PIL.Image object
-ImageTextDataset=iter([]) #A random image with one person inside and one random compliment/insult, should output a tuple with (image, statement, attitude_score)
+# ImageTextDataset=iter([]) #A random image with one person inside and one random compliment/insult, should output a tuple with (image, statement, attitude_score)
+ImageTextDataset=itertools.repeat((Image.open('people.webp'),"You are a diverse group of people.",0.0))
 #DataSet treated as an iterator, with each call to its __next__ method yielding one data point, refer to Python documentation as to how __next__ should be implemented
 
 #Generator initialised with feature_size set to 512 as that is the size for jde, if we switch to a different peekingduck model, rmb to change
