@@ -21,7 +21,7 @@ class Generator(torch.nn.Module):
             raise ValueError('Batch size must be equal across all arguments')
 
         tokens=self.tokens(starting_text,padding=True,return_tensors='pt')
-        all_new_toks,mask=tokens['input_ids'],tokens['attention_mask']      #torch.cat([torch.ones(len(attitude),1),tokens['attention_mask']],dim=1)
+        all_new_toks,mask=tokens['input_ids'],torch.cat([torch.ones(len(attitude),1),tokens['attention_mask']],dim=1)
         out_probs=torch.tensor([[]]*len(attitude))
 
         for i in range(max_length):
@@ -38,12 +38,12 @@ class Generator(torch.nn.Module):
         all_new_toks=torch.cat([all_new_toks, torch.full((len(all_new_toks),1),self.tokens.eos_token_id,dtype=torch.int)],dim=1)
         print(all_new_toks)
         if not echo_input_text:
-            all_new_toks=all_new_toks[:,(-i-2):]
+            all_new_toks=torch.cat([torch.full((len(all_new_toks),1),self.tokens.eos_token_id),all_new_toks[:,(-i-2):]], dim=1)
         prob_indices=[(toks == self.tokens.eos_token_id).nonzero(as_tuple=True)[0][1]-len(toks) for toks in all_new_toks]
-        all_new_toks=[tok[:index] for tok,index in zip(all_new_toks,prob_indices)]
+        all_new_toks=[tok[1:index] for tok,index in zip(all_new_toks,prob_indices)]
         if not return_probs:
             return [self.tokens.decode(toks,skip_special_tokens=True) for toks in all_new_toks]
-        out_probs=[prob[:index] for prob,index in zip(out_probs,prob_indices)]
+        out_probs=[(prob[:index+1] if index+1 < 0 else prob) for prob,index in zip(out_probs,prob_indices)]
         return all_new_toks, out_probs
         
             
@@ -67,4 +67,4 @@ class Generator(torch.nn.Module):
 
 if __name__=='__main__':
     x=Generator(2)
-    print(x.forward(torch.tensor([[1,2],[3,4]],dtype=torch.float),torch.tensor([[1],[1]]),['Hello, pleased to meet you','I'],return_probs=True,max_length=20,temperature=0.1,echo_input_text=True))
+    print(x.forward(torch.tensor([[1,2],[3,4]],dtype=torch.float),torch.tensor([[1],[1]]),return_probs=True,max_length=20,temperature=0.1))

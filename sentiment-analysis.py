@@ -55,5 +55,5 @@ def sentiment_analysis(sentences:list, process_softmax:bool=False):
     # output is a list of tensors, 1 tensor = 1 sentence, 1 list in tensor = 1 occurence of aspect
     return processed_outputs
 
-data = sentiment_analysis(["You look really good today, your hair is especially nice.", "Your food is really bad."])
+data = sentiment_analysis(["</z>", "You look great today!", "</z>You look great today!"], process_softmax=True)
 print(data)

@@ -15,10 +15,11 @@ import torch
 import torch.nn.functional as F
 
 class Discerner(torch.nn.Module):
-    def __init__(self):
+    def __init__(self,start_token='<z>'):
         
         super().__init__()
         #initialise all the models
+        self.start=start_token
         tokenizer = SenticGCNBertTokenizer.from_pretrained("bert-base-uncased")
         config = SenticGCNBertConfig.from_pretrained("https://storage.googleapis.com/sgnlp/models/sentic_gcn/senticgcn_bert/config.json")
         self.sentiment_model = SenticGCNBertModel.from_pretrained("https://storage.googleapis.com/sgnlp/models/sentic_gcn/senticgcn_bert/pytorch_model.bin", config=config)
@@ -44,7 +45,7 @@ class Discerner(torch.nn.Module):
         inputs=[]
         inputs_aspect_count=[]
         for stat in statement:
-            stat = stat.lower()
+            stat = self.start+stat.lower()
             for p in punctuation:
                 stat = stat.replace(p, f' {p} ')
             stat=re.sub(r"\s+", " ", stat)
@@ -56,7 +57,7 @@ class Discerner(torch.nn.Module):
             # add to inputs
             inputs.append( {'sentence': stat, 'aspects': list(dict.fromkeys(aspects))} )
             inputs_aspect_count.append(len(aspects))
-         
+        print(inputs)
         processed_indices = self.sentimentpreprocessor(inputs)[1]
         probabilities = self.sentiment_model(processed_indices).logits
         sentiment_packed_outputs = torch.nn.utils.rnn.pack_padded_sequence(torch.nn.utils.rnn.pad_sequence(torch.split(probabilities, inputs_aspect_count, dim=0),batch_first=True),batch_first=True,enforce_sorted=False,lengths=inputs_aspect_count)
@@ -66,6 +67,7 @@ class Discerner(torch.nn.Module):
         processed_sentiments=torch.cat([torch.cat(processed_sentiments),attitude],dim=1)
         all_features=torch.cat((clip_features,self.sentiment_attitude_corr(processed_sentiments)),dim=1)
         return self.discern(all_features)
-        
-image=Image.open('Snakes_Diversity.jpg')
-print(Discerner().forward([image,image],['snake is good','snake is very bad'],[1,-1]))
+
+if __name__=='__main__':
+    image=Image.open('Snakes_Diversity.jpg')
+    print(Discerner().forward([image],[''],[1]))

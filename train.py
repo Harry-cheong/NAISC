@@ -7,7 +7,7 @@ import itertools
 
 ImageOnlyDataset=itertools.repeat(Image.open('people.webp')) #Random images contating one person, should output PIL.Image object
 # ImageTextDataset=iter([]) #A random image with one person inside and one random compliment/insult, should output a tuple with (image, statement, attitude_score)
-ImageTextDataset=itertools.repeat((Image.open('people.webp'),"You are a diverse group of people.",0.0))
+ImageTextDataset=itertools.repeat((Image.open('people.webp'),"You are a person.",0.0))
 #DataSet treated as an iterator, with each call to its __next__ method yielding one data point, refer to Python documentation as to how __next__ should be implemented
 
 #Generator initialised with feature_size set to 512 as that is the size for jde, if we switch to a different peekingduck model, rmb to change
@@ -15,9 +15,9 @@ G=Generator(512)
 D=Discerner()
 
 #hyperparemeters, tune these
-epochs=10000
+epochs=10
 max_sequence_length = 20
-monte_carlo_iterations=10
+monte_carlo_iterations=1
 sampling_temperature = 0.1
 monte_carlo_sampling_temperature = 1.0
 G_lr=0.01
@@ -42,22 +42,26 @@ for epoch in range(epochs):
     attitudes=2*torch.rand(1,1)-1
     G_optim.zero_grad()
     toks, probs = G.forward(features, attitudes,max_length=max_sequence_length,temperature=sampling_temperature,return_probs=True)
+    print(probs[0])
     rewards=torch.tensor([])
     with torch.no_grad():
-        for remaining_length in range(len(toks[0])-1):
+        for remaining_length in range(1,len(toks[0])):
             realness=torch.tensor([])
             for _ in range(monte_carlo_iterations):
-                new_text=G.forward(features,attitudes,G.tokens.batch_decode(toks[:,:remaining_length],skip_special_tokens=True),temperature=monte_carlo_sampling_temperature,return_probs=True,max_length=max_sequence_length-remaining_length-1,echo_input_text=True)[0]
+                new_text=G.forward(features,attitudes,G.tokens.batch_decode([toks[0][:remaining_length]],skip_special_tokens=True),temperature=monte_carlo_sampling_temperature,return_probs=True,max_length=max_sequence_length-remaining_length-1,echo_input_text=True)[0]
                 realness=torch.cat([realness,D.forward([image],G.tokens.batch_decode(new_text,skip_special_tokens=True),attitudes)[0]],dim=0)
-            torch.cat([rewards,torch.mean(realness)])
-        rewards=torch.cat([rewards,D.forward([image],G.tokens.batch_decode(toks,skip_special_tokens=True),attitudes)[0]],dim=0)
-    loss=-torch.sum(rewards*torch.log(probs[0]))
-    loss.backward()
+            rewards=torch.cat([rewards,torch.mean(realness).unsqueeze(0)])
+        final_text=G.tokens.batch_decode(toks,skip_special_tokens=True)
+        rewards=torch.cat([rewards,D.forward([image],final_text,attitudes)[0]],dim=0)
+    G_loss=-torch.sum(rewards*torch.log(probs[0]))
+    print(G_loss)
+    G_loss.backward()
     G_optim.step()
     D_optim.zero_grad()
     image,text,attitude=next(ImageTextDataset)
-    loss=-(D.forward([image],[text],[attitude])[0]-D.forward([image],G.tokens.batch_decode(toks,skip_special_tokens=True),attitudes)[0])
-    loss.backward()
+    D_loss=-(D.forward([image],[text],[attitude])[0]-D.forward([image],final_text,attitudes)[0])
+    print(D_loss)
+    D_loss.backward()
     D_optim.step()
     
 
