@@ -78,11 +78,14 @@ class GUI:
 
         if gender:
             self.GUIData.append("Male" if gender[0] == "m" else "Female")
-            if not compliments: self.GUIData.append([])
-            else: self.GUIData.append(compliments.split("\n"))
-            if not insults: self.GUIData.append([])
-            else: self.GUIData.append(insults.split("\n"))
-            # print(self.GUIData)
+            self.GUIData.append([])
+            if compliments:
+                for compliment in compliments.split("\n"):
+                    self.GUIData[1].append(compliment.strip())
+            self.GUIData.append([])
+            if insults: 
+                for insult in insults.split("\n"):
+                    self.GUIData[2].append(insult.strip())
             self.window.destroy()
     
     def skip(self):
@@ -179,10 +182,28 @@ class GUI:
             # Storing Data in json file 
             writeTOJson(newImgName, dst_path, gender, insults, compliments)
 
+def exploreData():
+    with open(os.path.join(PATH_TO_DATASET, "Annotations.json"), "r") as jsonFile:
+        json_object = json.load(jsonFile)
+        insults = compliments = 0
+        dataSize = 0
+        males = females = 0
+        for data in json_object.keys():
+            insults += len(json_object[data]['insults'])
+            compliments += len(json_object[data]['compliments'])
+            if json_object[data]['gender'] == 'Male': males += 1 
+            else: females += 1
+            dataSize += 1
+            # print(data)
+        
+    print(f"\n( DataSize Info ) \n{'[ Size ]'.ljust(25, ' ')} : {dataSize}\n{'[ No. of Insults ]'.ljust(25, ' ')} : {insults}\n{'[ No. of Compliments ]'.ljust(25, ' ')} : {compliments}\n{'[ Male | Female ]'.ljust(25, ' ')} : {males} | {females}")
+
+
 if __name__ == "__main__":
     # createDataset(1000, 5)
 
-    guimain = GUI()
-    guimain.loopDataset()
+    # guimain = GUI()
+    # guimain.loopDataset()
+    exploreData()
 
 

@@ -1,7 +1,7 @@
 import torch
-from preprocess_image import Preprocessor
-from discern import Discerner
-from generate import Generator
+from sgnlp.preprocess_image import Preprocessor
+from GAN.discern import Discerner
+from GAN.generate import Generator
 from PIL import Image
 import itertools
 
