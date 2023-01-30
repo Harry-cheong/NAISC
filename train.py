@@ -1,5 +1,5 @@
 import torch
-from sgnlp.preprocess_image import Preprocessor
+from peekingduck_process.preprocess_image import Preprocessor
 from GAN.discern import Discerner
 from GAN.generate import Generator
 from PIL import Image
