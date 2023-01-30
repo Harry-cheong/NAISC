@@ -23,6 +23,8 @@ class ImageOnlyDataLoader:
             random.shuffle(self.imgdata)
         self.idx += 1
         return self.imgdata[self.idx-1]
+    def __len__(self):
+        return len(self.imgdata)
     next = __next__
 
 class ImageTextDataLoader:
@@ -61,7 +63,12 @@ class ImageTextDataLoader:
             random.shuffle(self.imgtxtdata)
         self.idx += 1
         return self.imgtxtdata[self.idx-1]
+    def __len__(self):
+        return len(self.imgtxtdata)
     next = __next__
 
 if __name__ == "__main__":
-    w = ImageTextDataLoader("annDataset/annotations.json", replaceDirSepChar=True)
+    ImageOnlyDataset = ImageOnlyDataLoader("annDataset/annotations.json", replaceDirSepChar=True)
+    print(len(ImageOnlyDataset))
+    ImageTextDataset = ImageTextDataLoader("annDataset/annotations.json", replaceDirSepChar=True, skipUnratedStatements=True)
+    print(len(ImageTextDataset))
