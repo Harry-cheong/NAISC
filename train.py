@@ -6,21 +6,26 @@ from PIL import Image
 from dataloader import ImageOnlyDataLoader, ImageTextDataLoader
 import itertools
 
-ImageOnlyDataset=ImageOnlyDataLoader("annDataset/Annotations.json", replaceDirSepChar=True) 
-ImageTextDataset=ImageTextDataLoader("annDataset/Annotations.json", replaceDirSepChar=True, skipUnratedStatements=True) 
-
 #Generator initialised with feature_size set to 512 as that is the size for jde, if we switch to a different peekingduck model, rmb to change
 G=Generator(512)
 D=Discerner()
 
 #hyperparemeters, tune these
-epochs=10
+epochs=10000
 max_sequence_length = 20
 monte_carlo_iterations=1
 sampling_temperature = 0.1
 monte_carlo_sampling_temperature = 1.0
 G_lr=0.01
 D_lr=0.01
+
+# model checkpointing parameters
+epoch_checkpoint=1000 # saves model every epoch_checkpoint epochs
+model_folder = "model_checkpoint"
+
+# training datasets
+ImageOnlyDataset=ImageOnlyDataLoader("annDataset/Annotations.json", epochs, replaceDirSepChar=True) 
+ImageTextDataset=ImageTextDataLoader("annDataset/Annotations.json", epochs, replaceDirSepChar=True, skipUnratedStatements=True) 
 
 #try different optimizers, should be a drag and drop replacement
 G_optim=torch.optim.SGD(G.parameters(),lr=G_lr)
@@ -62,10 +67,22 @@ for epoch in range(epochs):
     print(D_loss)
     D_loss.backward()
     D_optim.step()
-    
 
+    if epoch % epoch_checkpoint == 0 and epochs != 0:
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': G.state_dict(),
+            'optimizer_state_dict': G_optim.state_dict(),
+            'loss': G_loss,
+            'img_only_dataset': list(ImageOnlyDataset),
+            'img_text_dataset': list(ImageTextDataset)
+        }, f"{model_folder}/generator.pt")
 
-
-
-    
-    
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': D.state_dict(),
+            'optimizer_state_dict': D_optim.state_dict(),
+            'loss': D_loss,
+            'img_only_dataset': list(ImageOnlyDataset),
+            'img_text_dataset': list(ImageTextDataset)
+        }, f"{model_folder}/discerner.pt")
