@@ -87,11 +87,6 @@ class GUI:
                 for insult in insults.split("\n"):
                     self.GUIData[2].append(insult.strip())
             self.window.destroy()
-    
-    def skip(self):
-        self.skip = True
-        self.window.destroy()
-        print("Skipped")
 
     def summonGUI(self, src_file, imgno): 
         self.window = tk.Tk()
@@ -188,15 +183,29 @@ def exploreData():
         insults = compliments = 0
         dataSize = 0
         males = females = 0
+        sentiment = 0.0
+
         for data in json_object.keys():
+
+            # Counting number of compliments vs insults
             insults += len(json_object[data]['insults'])
             compliments += len(json_object[data]['compliments'])
+
+            # Determining distribution of gender 
             if json_object[data]['gender'] == 'Male': males += 1 
             else: females += 1
             dataSize += 1
-            # print(data)
+            
+            # Finding Gross Sentiment 
+            try:
+                for i in json_object[data]['insults']:
+                    sentiment -= float(i[i.find("~") + 1:])
+                
+                for c in json_object[data]['compliments']:
+                    sentiment += float(c[c.find("~") + 1:])
+            except: pass
         
-    print(f"\n( DataSize Info ) \n{'[ Size ]'.ljust(25, ' ')} : {dataSize}\n{'[ No. of Insults ]'.ljust(25, ' ')} : {insults}\n{'[ No. of Compliments ]'.ljust(25, ' ')} : {compliments}\n{'[ Male | Female ]'.ljust(25, ' ')} : {males} | {females}")
+    print(f"\n( DataSize Info ) \n{'[ Size ]'.ljust(25, ' ')} : {dataSize}\n{'[ No. of Insults ]'.ljust(25, ' ')} : {insults}\n{'[ No. of Compliments ]'.ljust(25, ' ')} : {compliments}\n{'[ Male | Female ]'.ljust(25, ' ')} : {males} | {females}\n{'[ Sentiment ]'.ljust(25, ' ')} : {round(sentiment,2)}")
 
 
 if __name__ == "__main__":
