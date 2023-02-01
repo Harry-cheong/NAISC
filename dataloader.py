@@ -1,11 +1,14 @@
 from PIL import Image
 import random
 import json
+import time
 
 class ImageOnlyDataLoader:
     # used for generator
-    def __init__(self, JSONfilepath, total_epochs, curr_idx=0, replaceDirSepChar=False):
+    def __init__(self, JSONfilepath, total_epochs, curr_idx=0, seed=None, replaceDirSepChar=False):
         # set replaceDirSepChar to True on non-Windows systems to replace \\ to /
+        self.rng_seed = int(time.time()) if seed is None else seed
+        random.seed(self.rng_seed)
         self.idx = curr_idx
         dataset = []
         with open(JSONfilepath, "r") as file:
@@ -19,8 +22,7 @@ class ImageOnlyDataLoader:
             random.shuffle(dataset)
             self.imgdata += dataset
         random.shuffle(dataset)
-        cut_dataset = dataset[:(total_epochs % len(dataset))]
-        self.imgdata += cut_dataset
+        self.imgdata += dataset[:(total_epochs % len(dataset))]
     def __iter__(self):
         return self
     def __next__(self):
@@ -31,12 +33,16 @@ class ImageOnlyDataLoader:
             raise StopIteration
     def __len__(self):
         return len(self.imgdata)
+    def seed(self):
+        return self.rng_seed
     next = __next__
 
 class ImageTextDataLoader:
     # used for discerner
-    def __init__(self, JSONfilepath, total_epochs, curr_idx=0, replaceDirSepChar=False, skipUnratedStatements=False):
+    def __init__(self, JSONfilepath, total_epochs, curr_idx=0, seed=None, replaceDirSepChar=False, skipUnratedStatements=False):
         # set replaceDirSepChar to True on non-Windows systems to replace \\ to /
+        self.rng_seed = int(time.time()) if seed is None else seed
+        random.seed(self.rng_seed)
         self.idx = curr_idx
         dataset = []
         with open(JSONfilepath, "r") as file:
@@ -76,10 +82,15 @@ class ImageTextDataLoader:
             raise StopIteration
     def __len__(self):
         return len(self.imgtxtdata)
+    def seed(self):
+        return self.rng_seed
     next = __next__
 
 if __name__ == "__main__":
     ImageOnlyDataset = ImageOnlyDataLoader("annDataset/annotations.json", 1000, replaceDirSepChar=True)
-    print(len(ImageOnlyDataset))
     ImageTextDataset = ImageTextDataLoader("annDataset/annotations.json", 1000, replaceDirSepChar=True, skipUnratedStatements=True)
-    print(len(ImageTextDataset))
+    k = ImageTextDataset.seed()
+
+    ImageTextDatasetNew = ImageTextDataLoader("annDataset/annotations.json", 1000, seed=k, replaceDirSepChar=True, skipUnratedStatements=True)
+    print(list(iter(ImageTextDataset))[:3], end="\n\n\n")
+    print(list(iter(ImageTextDatasetNew))[:3])

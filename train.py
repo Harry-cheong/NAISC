@@ -2,9 +2,7 @@ import torch
 from peekingduck_process.preprocess_image import Preprocessor
 from GAN.discern import Discerner
 from GAN.generate import Generator
-from PIL import Image
 from dataloader import ImageOnlyDataLoader, ImageTextDataLoader
-import itertools
 
 #Generator initialised with feature_size set to 512 as that is the size for jde, if we switch to a different peekingduck model, rmb to change
 G=Generator(512)
@@ -12,7 +10,7 @@ D=Discerner()
 
 #hyperparemeters, tune these
 epochs=10000
-max_sequence_length = 20
+max_sequence_length = 5
 monte_carlo_iterations=1
 sampling_temperature = 0.1
 monte_carlo_sampling_temperature = 1.0
@@ -22,17 +20,35 @@ D_lr=0.01
 # model checkpointing parameters
 epoch_checkpoint=1000 # saves model every epoch_checkpoint epochs
 model_folder = "model_checkpoint"
+load_model_from_checkpoint = False
 
 # training datasets
-ImageOnlyDataset=ImageOnlyDataLoader("annDataset/Annotations.json", epochs, replaceDirSepChar=True) 
-ImageTextDataset=ImageTextDataLoader("annDataset/Annotations.json", epochs, replaceDirSepChar=True, skipUnratedStatements=True) 
+ImageOnlyDataset=ImageOnlyDataLoader(JSONfilepath="annDataset/Annotations.json", total_epochs=epochs, replaceDirSepChar=True) 
+ImageTextDataset=ImageTextDataLoader(JSONfilepath="annDataset/Annotations.json", total_epochs=epochs, replaceDirSepChar=True, skipUnratedStatements=True) 
 
 #try different optimizers, should be a drag and drop replacement
 G_optim=torch.optim.SGD(G.parameters(),lr=G_lr)
 D_optim=torch.optim.SGD(D.parameters(),lr=D_lr)
+
+initial_epoch = 0
+if load_model_from_checkpoint:
+    G_checkpoint = torch.load(f"{model_folder}/generator.pt")
+    G.load_state_dict(G_checkpoint['model_state_dict'])
+    G_optim.load_state_dict(G_checkpoint['optimizer_state_dict'])
+
+    D_checkpoint = torch.load(f"{model_folder}/discerner.pt")
+    D.load_state_dict(D_checkpoint['model_state_dict'])
+    D_optim.load_state_dict(D_checkpoint['optimizer_state_dict'])
+    
+    initial_epoch = G_checkpoint['epoch']+1
+    ImageOnlyDataset=ImageOnlyDataLoader(JSONfilepath="annDataset/Annotations.json", total_epochs=epochs, curr_idx=initial_epoch, 
+                                        seed=G_checkpoint["img_only_seed"], replaceDirSepChar=True)
+    ImageTextDataset=ImageTextDataLoader(JSONfilepath="annDataset/Annotations.json", total_epochs=epochs, curr_idx=initial_epoch, 
+                                        seed=G_checkpoint["img_text_seed"], replaceDirSepChar=True) 
+
 torch.random.manual_seed(0)
 #NOT batched because i dont care
-for epoch in range(epochs):
+for epoch in range(initial_epoch, epochs):
     features=[]
     while features==[]:
         #reset to new proprocessor because jde has memory, luckily peeking duck does not need to redownload unlike SOME libraries
@@ -62,20 +78,20 @@ for epoch in range(epochs):
     G_loss.backward()
     G_optim.step()
     D_optim.zero_grad()
-    image,text,attitude=next(ImageTextDataset)
-    D_loss=-(D.forward([image],[text],[attitude])[0]-D.forward([image],final_text,attitudes)[0])
+    d_image,d_text,d_attitude=next(ImageTextDataset)
+    D_loss=-(D.forward([d_image],[d_text],[d_attitude])[0]-D.forward([image],final_text,attitudes)[0])
     print(D_loss)
     D_loss.backward()
     D_optim.step()
 
-    if epoch % epoch_checkpoint == 0 and epochs != 0:
+    if (epoch-1) % epoch_checkpoint == 0 or epoch == epochs-1 or epoch == 0:
         torch.save({
             'epoch': epoch,
             'model_state_dict': G.state_dict(),
             'optimizer_state_dict': G_optim.state_dict(),
             'loss': G_loss,
-            'img_only_dataset': list(ImageOnlyDataset),
-            'img_text_dataset': list(ImageTextDataset)
+            'img_only_seed': ImageOnlyDataset.seed(),
+            'img_text_seed': ImageTextDataset.seed()
         }, f"{model_folder}/generator.pt")
 
         torch.save({
@@ -83,6 +99,6 @@ for epoch in range(epochs):
             'model_state_dict': D.state_dict(),
             'optimizer_state_dict': D_optim.state_dict(),
             'loss': D_loss,
-            'img_only_dataset': list(ImageOnlyDataset),
-            'img_text_dataset': list(ImageTextDataset)
+            'img_only_seed': ImageOnlyDataset.seed(),
+            'img_text_seed': ImageTextDataset.seed()
         }, f"{model_folder}/discerner.pt")
