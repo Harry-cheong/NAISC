@@ -5,7 +5,7 @@ import time
 
 class ImageOnlyDataLoader:
     # used for generator
-    def __init__(self, JSONfilepath, total_epochs, curr_idx=0, seed=None, replaceDirSepChar=False):
+    def __init__(self, JSONfilepath, total_epochs, curr_idx=0, seed=None, replaceDirSepChar=False, contentFolder=""):
         # set replaceDirSepChar to True on non-Windows systems to replace \\ to /
         self.rng_seed = int(time.time()) if seed is None else seed
         random.seed(self.rng_seed)
@@ -14,9 +14,9 @@ class ImageOnlyDataLoader:
         with open(JSONfilepath, "r") as file:
             data = json.load(file)
             if replaceDirSepChar:
-                dataset = [Image.open(data[key]['path'].replace("\\", "/")) for key in data.keys()]
+                dataset = [Image.open(contentFolder+data[key]['path'].replace("\\", "/")) for key in data.keys()]
             else:
-                dataset = [Image.open(data[key]['path']) for key in data.keys()]
+                dataset = [Image.open(contentFolder+data[key]['path']) for key in data.keys()]
         self.imgdata = []
         for _ in range(len(dataset), total_epochs, len(dataset)):
             random.shuffle(dataset)
@@ -39,7 +39,7 @@ class ImageOnlyDataLoader:
 
 class ImageTextDataLoader:
     # used for discerner
-    def __init__(self, JSONfilepath, total_epochs, curr_idx=0, seed=None, replaceDirSepChar=False, skipUnratedStatements=False):
+    def __init__(self, JSONfilepath, total_epochs, curr_idx=0, seed=None, replaceDirSepChar=False, skipUnratedStatements=False, contentFolder=""):
         # set replaceDirSepChar to True on non-Windows systems to replace \\ to /
         self.rng_seed = int(time.time()) if seed is None else seed
         random.seed(self.rng_seed)
@@ -49,7 +49,7 @@ class ImageTextDataLoader:
             data = json.load(file)
             for key in data.keys():
                 data_dict = data[key]
-                imgpath = data_dict['path'].replace("\\", "/") if replaceDirSepChar else data_dict['path']
+                imgpath = contentFolder + (data_dict['path'].replace("\\", "/") if replaceDirSepChar else data_dict['path'])
                 for insult in data_dict['insults']:
                     if "~" not in insult and not skipUnratedStatements:
                         raise ValueError("Unrated statment occured, use ~ to rate statements")
@@ -85,12 +85,3 @@ class ImageTextDataLoader:
     def seed(self):
         return self.rng_seed
     next = __next__
-
-if __name__ == "__main__":
-    ImageOnlyDataset = ImageOnlyDataLoader("annDataset/annotations.json", 1000, replaceDirSepChar=True)
-    ImageTextDataset = ImageTextDataLoader("annDataset/annotations.json", 1000, replaceDirSepChar=True, skipUnratedStatements=True)
-    k = ImageTextDataset.seed()
-
-    ImageTextDatasetNew = ImageTextDataLoader("annDataset/annotations.json", 1000, seed=k, replaceDirSepChar=True, skipUnratedStatements=True)
-    print(list(iter(ImageTextDataset))[:3], end="\n\n\n")
-    print(list(iter(ImageTextDatasetNew))[:3])

@@ -19,12 +19,15 @@ D_lr=0.01
 
 # model checkpointing parameters
 epoch_checkpoint=1000 # saves model every epoch_checkpoint epochs
-model_folder = "model_checkpoint"
+data_content_folder = "" # leave blank for local system, use /content/NAISC/ for google colab
+model_folder = data_content_folder+"model_checkpoint/"
 load_model_from_checkpoint = False
 
 # training datasets
-ImageOnlyDataset=ImageOnlyDataLoader(JSONfilepath="annDataset/Annotations.json", total_epochs=epochs, replaceDirSepChar=True) 
-ImageTextDataset=ImageTextDataLoader(JSONfilepath="annDataset/Annotations.json", total_epochs=epochs, replaceDirSepChar=True, skipUnratedStatements=True) 
+ImageOnlyDataset=ImageOnlyDataLoader(JSONfilepath=data_content_folder+"annDataset/Annotations.json", total_epochs=epochs, 
+                                        contentFolder=data_content_folder, replaceDirSepChar=True) 
+ImageTextDataset=ImageTextDataLoader(JSONfilepath=data_content_folder+"annDataset/Annotations.json", total_epochs=epochs, 
+                                        contentFolder=data_content_folder, replaceDirSepChar=True, skipUnratedStatements=True) 
 
 #try different optimizers, should be a drag and drop replacement
 G_optim=torch.optim.SGD(G.parameters(),lr=G_lr)
@@ -41,10 +44,12 @@ if load_model_from_checkpoint:
     D_optim.load_state_dict(D_checkpoint['optimizer_state_dict'])
     
     initial_epoch = G_checkpoint['epoch']+1
-    ImageOnlyDataset=ImageOnlyDataLoader(JSONfilepath="annDataset/Annotations.json", total_epochs=epochs, curr_idx=initial_epoch, 
-                                        seed=G_checkpoint["img_only_seed"], replaceDirSepChar=True)
-    ImageTextDataset=ImageTextDataLoader(JSONfilepath="annDataset/Annotations.json", total_epochs=epochs, curr_idx=initial_epoch, 
-                                        seed=G_checkpoint["img_text_seed"], replaceDirSepChar=True) 
+    ImageOnlyDataset=ImageOnlyDataLoader(JSONfilepath=data_content_folder+"annDataset/Annotations.json", total_epochs=epochs, 
+                                        curr_idx=initial_epoch, seed=G_checkpoint["img_only_seed"], contentFolder=data_content_folder, 
+                                        replaceDirSepChar=True)
+    ImageTextDataset=ImageTextDataLoader(JSONfilepath=data_content_folder+"annDataset/Annotations.json", total_epochs=epochs, 
+                                        curr_idx=initial_epoch, seed=G_checkpoint["img_text_seed"], contentFolder=data_content_folder, 
+                                        replaceDirSepChar=True) 
 
 torch.random.manual_seed(0)
 #NOT batched because i dont care
@@ -92,7 +97,7 @@ for epoch in range(initial_epoch, epochs):
             'loss': G_loss,
             'img_only_seed': ImageOnlyDataset.seed(),
             'img_text_seed': ImageTextDataset.seed()
-        }, f"{model_folder}/generator.pt")
+        }, (model_folder + "generator.pt"))
 
         torch.save({
             'epoch': epoch,
@@ -101,4 +106,4 @@ for epoch in range(initial_epoch, epochs):
             'loss': D_loss,
             'img_only_seed': ImageOnlyDataset.seed(),
             'img_text_seed': ImageTextDataset.seed()
-        }, f"{model_folder}/discerner.pt")
+        }, (model_folder + "discerner.pt"))
