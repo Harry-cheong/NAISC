@@ -3,14 +3,15 @@ from transformers import AutoConfig, OPTForCausalLM, AutoTokenizer
 import torch.nn.functional as F
 
 class Generator(torch.nn.Module):
-    def __init__(self,feature_size):
+    def __init__(self,feature_size,device="cpu"):
         super().__init__()
+        dev=torch.device(device)
         self.tokens=AutoTokenizer.from_pretrained('facebook/opt-350m', padding_side='left')
         self.config=AutoConfig.from_pretrained('facebook/opt-350m')
         self.text_model=OPTForCausalLM(self.config).from_pretrained('facebook/opt-350m')
         self.embeds=self.text_model.get_input_embeddings()
         hidden_size=self.embeds.embedding_dim
-        self.features_to_embed=torch.nn.Sequential(torch.nn.Linear(feature_size+1,(feature_size+hidden_size+1)//2),torch.nn.GELU(),torch.nn.Linear((feature_size+hidden_size+1)//2,hidden_size))
+        self.features_to_embed=torch.nn.Sequential(torch.nn.Linear(feature_size+1,(feature_size+hidden_size+1)//2),torch.nn.GELU(),torch.nn.Linear((feature_size+hidden_size+1)//2,hidden_size)).to(dev)
     
     def forward(self, image_features, attitude, starting_text = None, max_length = 10, temperature = 1.0, return_probs = False, echo_input_text = False):
 
@@ -36,7 +37,6 @@ class Generator(torch.nn.Module):
                 break
             mask=torch.cat([mask,torch.ones(len(mask),1)],dim=1)
         all_new_toks=torch.cat([all_new_toks, torch.full((len(all_new_toks),1),self.tokens.eos_token_id,dtype=torch.int)],dim=1)
-        print(all_new_toks)
         if not echo_input_text:
             all_new_toks=torch.cat([torch.full((len(all_new_toks),1),self.tokens.eos_token_id),all_new_toks[:,(-i-2):]], dim=1)
         prob_indices=[(toks == self.tokens.eos_token_id).nonzero(as_tuple=True)[0][1]-len(toks) for toks in all_new_toks]
@@ -62,9 +62,6 @@ class Generator(torch.nn.Module):
         if input_is_tokens:
             return torch.cat([starting_embed,previous_embed],dim=1)
         return torch.cat([starting_embed,previous_embed],dim=1), torch.cat([torch.ones(len(attitude),1),toks['attention_mask']],dim=1)
-        
-
-
 if __name__=='__main__':
     x=Generator(2)
     print(x.forward(torch.tensor([[1,2],[3,4]],dtype=torch.float),torch.tensor([[1],[1]]),return_probs=True,max_length=20,temperature=0.1))

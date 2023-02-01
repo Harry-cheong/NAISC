@@ -4,9 +4,14 @@ from GAN.discern import Discerner
 from GAN.generate import Generator
 from dataloader import ImageOnlyDataLoader, ImageTextDataLoader
 
+if torch.cuda.is_available():  
+    device = "cuda:0" 
+else:  
+    device = "cpu" 
+
 #Generator initialised with feature_size set to 512 as that is the size for jde, if we switch to a different peekingduck model, rmb to change
-G=Generator(512)
-D=Discerner()
+G=Generator(512, device=device)
+D=Discerner(device=device)
 
 #hyperparemeters, tune these
 epochs=10000
@@ -35,11 +40,11 @@ D_optim=torch.optim.SGD(D.parameters(),lr=D_lr)
 
 initial_epoch = 0
 if load_model_from_checkpoint:
-    G_checkpoint = torch.load(f"{model_folder}/generator.pt")
+    G_checkpoint = torch.load((model_folder + "generator.pt"))
     G.load_state_dict(G_checkpoint['model_state_dict'])
     G_optim.load_state_dict(G_checkpoint['optimizer_state_dict'])
 
-    D_checkpoint = torch.load(f"{model_folder}/discerner.pt")
+    D_checkpoint = torch.load((model_folder + "discerner.pt"))
     D.load_state_dict(D_checkpoint['model_state_dict'])
     D_optim.load_state_dict(D_checkpoint['optimizer_state_dict'])
     
@@ -54,6 +59,7 @@ if load_model_from_checkpoint:
 torch.random.manual_seed(0)
 #NOT batched because i dont care
 for epoch in range(initial_epoch, epochs):
+    print(f"EPOCH {epoch}")
     features=[]
     while features==[]:
         #reset to new proprocessor because jde has memory, luckily peeking duck does not need to redownload unlike SOME libraries
@@ -89,7 +95,7 @@ for epoch in range(initial_epoch, epochs):
     D_loss.backward()
     D_optim.step()
 
-    if (epoch-1) % epoch_checkpoint == 0 or epoch == epochs-1 or epoch == 0:
+    if (epoch-1) % epoch_checkpoint == 0 or epoch == epochs-1:
         torch.save({
             'epoch': epoch,
             'model_state_dict': G.state_dict(),

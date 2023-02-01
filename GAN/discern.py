@@ -15,9 +15,10 @@ import torch
 import torch.nn.functional as F
 
 class Discerner(torch.nn.Module):
-    def __init__(self,start_token='<z>'):
+    def __init__(self,start_token='<z>',device="cpu"):
         
         super().__init__()
+        dev=torch.device(device)
         #initialise all the models
         self.start=start_token
         tokenizer = SenticGCNBertTokenizer.from_pretrained("bert-base-uncased")
@@ -25,12 +26,12 @@ class Discerner(torch.nn.Module):
         self.sentiment_model = SenticGCNBertModel.from_pretrained("https://storage.googleapis.com/sgnlp/models/sentic_gcn/senticgcn_bert/pytorch_model.bin", config=config)
         embed_config = SenticGCNBertEmbeddingConfig.from_pretrained("bert-base-uncased")
         embed_model = SenticGCNBertEmbeddingModel.from_pretrained("bert-base-uncased", config=embed_config)
-        self.sentimentpreprocessor = SenticGCNBertPreprocessor(tokenizer=tokenizer, embedding_model=embed_model, senticnet="https://storage.googleapis.com/sgnlp/models/sentic_gcn/senticnet.pickle", device="cpu")
-        self.clip_model, self.imagepreprocessor = clip.load('ViT-B/32', jit=False)
-        self.imagetextfeatures = torch.nn.Sequential(torch.nn.Linear(1025,768), torch.nn.GELU(), torch.nn.Linear(768,512), torch.nn.GELU())
-        self.sentiment_gru = torch.nn.GRU(input_size=3, hidden_size=3,batch_first=True)
-        self.sentiment_attitude_corr=torch.nn.Sequential(torch.nn.Linear(4,258),torch.nn.GELU(),torch.nn.Linear(258,512),torch.nn.GELU())
-        self.discern=torch.nn.Sequential(torch.nn.Linear(1024,512),torch.nn.GELU(),torch.nn.Linear(512,1))
+        self.sentimentpreprocessor = SenticGCNBertPreprocessor(tokenizer=tokenizer, embedding_model=embed_model, senticnet="https://storage.googleapis.com/sgnlp/models/sentic_gcn/senticnet.pickle", device=device)
+        self.clip_model, self.imagepreprocessor = clip.load('ViT-B/32', device=device, jit=False)
+        self.imagetextfeatures = torch.nn.Sequential(torch.nn.Linear(1025,768), torch.nn.GELU(), torch.nn.Linear(768,512), torch.nn.GELU()).to(dev)
+        self.sentiment_gru = torch.nn.GRU(input_size=3, hidden_size=3,batch_first=True).to(dev)
+        self.sentiment_attitude_corr=torch.nn.Sequential(torch.nn.Linear(4,258),torch.nn.GELU(),torch.nn.Linear(258,512),torch.nn.GELU()).to(dev)
+        self.discern=torch.nn.Sequential(torch.nn.Linear(1024,512),torch.nn.GELU(),torch.nn.Linear(512,1)).to(dev)
 
     def forward(self, image, statement, attitude):
         attitude=torch.tensor([[a] for a in attitude])
@@ -67,7 +68,6 @@ class Discerner(torch.nn.Module):
         processed_sentiments=torch.cat([torch.cat(processed_sentiments),attitude],dim=1)
         all_features=torch.cat((clip_features,self.sentiment_attitude_corr(processed_sentiments)),dim=1)
         return self.discern(all_features)
-
 if __name__=='__main__':
     image=Image.open('Snakes_Diversity.jpg')
     print(Discerner().forward([image],[''],[1]))
