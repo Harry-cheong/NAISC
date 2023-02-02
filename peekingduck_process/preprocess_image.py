@@ -21,9 +21,3 @@ class Preprocessor:
         for (left,right),(up,down) in zip(x_bboxes,y_bboxes):
             images.append(image.crop((left,up,right,down)))
         return images,[feats[f] for f in predicts[1]]
-
-if __name__=='__main__':
-    preprocess=Preprocessor()
-    for i in range(2):
-        for embed in preprocess(Image.open('people.jpg'))[1]:
-            print(embed)
