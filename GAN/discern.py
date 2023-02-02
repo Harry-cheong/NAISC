@@ -15,10 +15,8 @@ import torch
 import torch.nn.functional as F
 
 class Discerner(torch.nn.Module):
-    def __init__(self,start_token='<z>',device="cpu"):
+    def __init__(self,start_token='<z>'):
         super().__init__()
-        self.device=device
-        self.dev=torch.device(device)
         #initialise all the models
         self.start=start_token
         tokenizer = SenticGCNBertTokenizer.from_pretrained("bert-base-uncased")

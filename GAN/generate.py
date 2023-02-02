@@ -3,9 +3,8 @@ from transformers import AutoConfig, OPTForCausalLM, AutoTokenizer
 import torch.nn.functional as F
 
 class Generator(torch.nn.Module):
-    def __init__(self,feature_size,device="cpu"):
+    def __init__(self,feature_size):
         super().__init__()
-        self.device=torch.device(device)
         self.tokens=AutoTokenizer.from_pretrained('facebook/opt-350m', padding_side='left')
         config=AutoConfig.from_pretrained('facebook/opt-350m')
         self.text_model=OPTForCausalLM(config).from_pretrained('facebook/opt-350m')
