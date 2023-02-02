@@ -5,11 +5,13 @@ from GAN.generate import Generator
 from dataloader import ImageOnlyDataLoader, ImageTextDataLoader
 
 if torch.cuda.is_available():  
-    device = "cuda:0" 
+    device = "cuda:0"
+    torch.set_default_tensor_type(torch.cuda.FloatTensor)
 else:  
     device = "cpu" 
-if 'cuda' in device:
-    torch.set_default_tensor_type(torch.cuda.FloatTensor)
+
+print(device)
+    
 
 #Generator initialised with feature_size set to 512 as that is the size for jde, if we switch to a different peekingduck model, rmb to change
 G=Generator(512).to(device)
@@ -27,7 +29,7 @@ D_lr=0.01
 # model checkpointing parameters
 epoch_checkpoint=100 # saves model every epoch_checkpoint epochs
 data_content_folder = "" # leave blank for local system, use /content/NAISC/ for google colab
-model_folder = data_content_folder + "model_checkpoint/"
+model_folder = r'/content/drive/MyDrive/NAISC_MODEL_CHECKPOINTS/' #PLEASE change accordingly to where you want to save your model
 
 
 load_model_from_checkpoint = False
@@ -94,7 +96,7 @@ for epoch in range(initial_epoch, epochs):
     D_loss.backward()
     D_optim.step()
 
-    if (epoch-1) % epoch_checkpoint == 0 or epoch == epochs-1:
+    if (epoch+1) % epoch_checkpoint == 0 or epoch == epochs:
         torch.save({
             'epoch': epoch,
             'model_state_dict': G.state_dict(),
