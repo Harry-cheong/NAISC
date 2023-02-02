@@ -31,7 +31,7 @@ class ImageOnlyDataLoader:
         for _ in range(2):
             while self.data_queue:
                 try:
-                    return Image.open(self.data_queue.pop())
+                    return Image.open(str(self.path.joinpath(self.data_queue.pop())))
                 except FileNotFoundError:
                     warnings.warn('Contents of data directory was modified', RuntimeWarning)
             self.data_queue=self.dir.copy()
@@ -41,10 +41,10 @@ class ImageOnlyDataLoader:
 
 class ImageTextDataLoader:
     # used for discerner
-    def __init__(self, JSONfilepath, contentFolder="", skipUnratedStatements=False, data_queue=None, random_generator=None, seed=None):
+    def __init__(self, JSONfilepath, skipUnratedStatements=False, data_queue=None, random_generator=None, seed=None):
         if (data_queue is None) != (random_generator is None):
             warnings.warn('In order to resume data loading order, both "data_queue" and "random_generator" arguments must be provided', RuntimeWarning)
-
+        self.path=pathlib.PurePath(JSONfilepath).parent
         if random_generator is None:
             self.rng=random.Random(seed)
         else:
@@ -53,7 +53,7 @@ class ImageTextDataLoader:
         with open(JSONfilepath, "r") as file:
             data = json.load(file)
             for data_dict in data.values():
-                imgpath = pathlib.PurePath(contentFolder, data_dict['path'])
+                imgpath = pathlib.PurePath(*data_dict['path'].split('\\'))
                 for insult in data_dict['insults']:
                     if "~" not in insult and not skipUnratedStatements:
                         raise ValueError("Unrated statment found, use ~ to rate statements")
@@ -81,4 +81,4 @@ class ImageTextDataLoader:
             self.data_queue=self.dataset.copy()
             self.rng.shuffle(self.data_queue)
         imgpath, statement, attitude=self.data_queue.pop()
-        return Image.open(imgpath), statement, attitude
+        return Image.open(str(imgpath)), statement, attitude
