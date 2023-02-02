@@ -12,7 +12,7 @@ dev=torch.device(device)
 
 #Generator initialised with feature_size set to 512 as that is the size for jde, if we switch to a different peekingduck model, rmb to change
 G=Generator(512).to(dev)
-D=Discerner(),to(dev)
+D=Discerner(device).to(dev)
 
 #hyperparemeters, tune these
 epochs=10000

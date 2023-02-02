@@ -15,7 +15,7 @@ import torch
 import torch.nn.functional as F
 
 class Discerner(torch.nn.Module):
-    def __init__(self,start_token='<z>'):
+    def __init__(self,start_token='<z>',device='cpu'):
         super().__init__()
         #initialise all the models
         self.start=start_token
