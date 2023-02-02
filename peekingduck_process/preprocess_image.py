@@ -1,4 +1,3 @@
-from PIL import Image
 from peekingduck.pipeline.nodes.model.jde import Node
 import numpy as np
 
