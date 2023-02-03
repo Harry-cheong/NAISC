@@ -60,7 +60,7 @@ if load_model_from_checkpoint:
 torch.random.manual_seed(0)
 #NOT batched because i dont care
 for epoch in range(initial_epoch, epochs):
-    print(f"EPOCH {epoch}")
+    print(f"EPOCH {epoch+1}")
     features=[]
     while features==[]:
         #reset to new proprocessor because jde has memory, luckily peeking duck does not need to redownload unlike SOME libraries
@@ -68,7 +68,7 @@ for epoch in range(initial_epoch, epochs):
         image=next(ImageOnlyDataset)
         image, features=preprocess(image)
         if features:
-            features=torch.tensor(features[0]).unsqueeze(0)
+            features=torch.tensor(features[0],dtype=torch.float).unsqueeze(0)
     attitudes=(2*torch.rand(1,1)-1)
     G_optim.zero_grad()
     toks, probs = G.forward(features, attitudes,max_length=max_sequence_length,temperature=sampling_temperature,return_probs=True)
@@ -89,7 +89,7 @@ for epoch in range(initial_epoch, epochs):
     G_optim.step()
     D_optim.zero_grad()
     d_image,d_text,d_attitude=next(ImageTextDataset)
-    D_loss=-(D.forward([d_image],[d_text],[d_attitude])[0]-D.forward(image,final_text,attitudes)[0])
+    D_loss=-(D.forward([d_image],[d_text],[d_attitude])[0][0]-D.forward(image,final_text,attitudes)[0][0])
     print("Discerner loss:", D_loss)
     D_loss.backward()
     D_optim.step()
