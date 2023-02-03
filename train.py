@@ -14,7 +14,7 @@ print(device)
     
 
 #Generator initialised with feature_size set to 512 as that is the size for jde, if we switch to a different peekingduck model, rmb to change
-G=Generator(512).to(device)
+G=Generator(10).to(device)
 D=Discerner(device=device).to(device)
 
 #hyperparemeters, tune these
