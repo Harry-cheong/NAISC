@@ -34,7 +34,7 @@ class Discerner(torch.nn.Module):
         self.imagetextfeatures = torch.nn.Sequential(torch.nn.Linear(1025,768), torch.nn.GELU(), torch.nn.Linear(768,512), torch.nn.GELU())
         self.sentiment_gru = torch.nn.GRU(input_size=3, hidden_size=3,batch_first=True)
         self.sentiment_attitude_corr=torch.nn.Sequential(torch.nn.Linear(4,258),torch.nn.GELU(),torch.nn.Linear(258,512),torch.nn.GELU())
-        self.discern=torch.nn.Sequential(torch.nn.Linear(1024,512),torch.nn.GELU(),torch.nn.Linear(512,1))
+        self.discern=torch.nn.Sequential(torch.nn.Linear(1024,512),torch.nn.GELU(),torch.nn.Linear(512,2))
 
     def forward(self, image, statement, attitude):
         attitude=torch.tensor([[a] for a in attitude])

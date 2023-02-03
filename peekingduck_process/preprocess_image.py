@@ -20,8 +20,9 @@ class Preprocessor:
         images=[]
         landmarks=[]
         for (left,right),(up,down),land in zip(x_bboxes,y_bboxes,unscaled_landmarks):
-            landmark_x=(land[0::2]-left)/(right-left)
-            landmark_y=(land[1::2]-up)/(down-up)
+            scale=max(right-left,down-up)
+            landmark_x=(land[0::2]-left)/scale
+            landmark_y=(land[1::2]-up)/scale
             landmark=np.empty(landmark_x.shape[0]+landmark_y.shape[0])
             landmark[0::2]=landmark_x
             landmark[1::2]=landmark_y
