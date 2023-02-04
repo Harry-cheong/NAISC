@@ -14,11 +14,15 @@ import re
 import torch
 import torch.nn.functional as F
 
+if torch.cuda.is_available():
+    torch.set_default_tensor_type(torch.cuda.FloatTensor)
+
 class Discerner(torch.nn.Module):
     def __init__(self,start_token='<z>',device='cpu'):
         super().__init__()
         #initialise all the models
         self.start=start_token
+        self.device=device
         tokenizer = SenticGCNBertTokenizer.from_pretrained("bert-base-uncased")
         config = SenticGCNBertConfig.from_pretrained("https://storage.googleapis.com/sgnlp/models/sentic_gcn/senticgcn_bert/config.json")
         self.sentiment_model = SenticGCNBertModel.from_pretrained("https://storage.googleapis.com/sgnlp/models/sentic_gcn/senticgcn_bert/pytorch_model.bin", config=config)
@@ -30,14 +34,14 @@ class Discerner(torch.nn.Module):
         self.imagetextfeatures = torch.nn.Sequential(torch.nn.Linear(1025,768), torch.nn.GELU(), torch.nn.Linear(768,512), torch.nn.GELU())
         self.sentiment_gru = torch.nn.GRU(input_size=3, hidden_size=3,batch_first=True)
         self.sentiment_attitude_corr=torch.nn.Sequential(torch.nn.Linear(4,258),torch.nn.GELU(),torch.nn.Linear(258,512),torch.nn.GELU())
-        self.discern=torch.nn.Sequential(torch.nn.Linear(1024,512),torch.nn.GELU(),torch.nn.Linear(512,1))
+        self.discern=torch.nn.Sequential(torch.nn.Linear(1024,512),torch.nn.GELU(),torch.nn.Linear(512,2))
 
     def forward(self, image, statement, attitude):
         attitude=torch.tensor([[a] for a in attitude])
         if not (len(image)==len(statement)==len(attitude)):
             raise ValueError('Batch size for all arguments must be the same')
         
-        image_features = self.clip_model.encode_image(torch.cat([self.imagepreprocessor(im).unsqueeze(0) for im in image]))
+        image_features = self.clip_model.encode_image(torch.cat([self.imagepreprocessor(im).unsqueeze(0) for im in image]).to(self.device))
         text_features = self.clip_model.encode_text(clip.tokenize(statement))
         features_simularity=F.cosine_similarity(image_features,text_features,dim=1).unsqueeze(1)
         clip_features = self.imagetextfeatures(torch.cat([image_features,text_features,features_simularity],dim=1))
@@ -59,7 +63,8 @@ class Discerner(torch.nn.Module):
             inputs_aspect_count.append(len(aspects))
         processed_indices = self.sentimentpreprocessor(inputs)[1]
         probabilities = self.sentiment_model(processed_indices).logits
-        sentiment_packed_outputs = torch.nn.utils.rnn.pack_padded_sequence(torch.nn.utils.rnn.pad_sequence(torch.split(probabilities, inputs_aspect_count, dim=0),batch_first=True),batch_first=True,enforce_sorted=False,lengths=inputs_aspect_count)
+        # convert lengths to .cpu() due to internal issues
+        sentiment_packed_outputs = torch.nn.utils.rnn.pack_padded_sequence(torch.nn.utils.rnn.pad_sequence(torch.split(probabilities, inputs_aspect_count, dim=0),batch_first=True),batch_first=True,enforce_sorted=False,lengths=torch.tensor(inputs_aspect_count,dtype=torch.int64).cpu())
         processed_sentiments=[]
         for tensor, index in zip(*torch.nn.utils.rnn.pad_packed_sequence(self.sentiment_gru(sentiment_packed_outputs)[0],batch_first=True)):
             processed_sentiments.append(tensor[index-1].unsqueeze(0))
