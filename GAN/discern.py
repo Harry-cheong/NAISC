@@ -34,7 +34,7 @@ class Discerner(torch.nn.Module):
         self.imagetextfeatures = torch.nn.Sequential(torch.nn.Linear(1025,768), torch.nn.GELU(), torch.nn.Linear(768,512), torch.nn.GELU())
         self.sentiment_gru = torch.nn.GRU(input_size=3, hidden_size=3,batch_first=True)
         self.sentiment_attitude_corr=torch.nn.Sequential(torch.nn.Linear(4,258),torch.nn.GELU(),torch.nn.Linear(258,512),torch.nn.GELU())
-        self.discern=torch.nn.Sequential(torch.nn.Linear(1024,512),torch.nn.GELU(),torch.nn.Linear(512,2))
+        self.discern=torch.nn.Sequential(torch.nn.Linear(1024,512),torch.nn.GELU(),torch.nn.Linear(512,2), torch.nn.Softmax(dim=1))
 
     def forward(self, image, statement, attitude):
         attitude=torch.tensor([[a] for a in attitude])
@@ -42,7 +42,7 @@ class Discerner(torch.nn.Module):
             raise ValueError('Batch size for all arguments must be the same')
         
         image_features = self.clip_model.encode_image(torch.cat([self.imagepreprocessor(im).unsqueeze(0) for im in image]).to(self.device))
-        text_features = self.clip_model.encode_text(clip.tokenize(statement))
+        text_features = self.clip_model.encode_text(clip.tokenize(statement)[:,:78])
         features_simularity=F.cosine_similarity(image_features,text_features,dim=1).unsqueeze(1)
         clip_features = self.imagetextfeatures(torch.cat([image_features,text_features,features_simularity],dim=1))
 
