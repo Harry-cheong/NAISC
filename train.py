@@ -7,13 +7,14 @@ from dataloader import ImageOnlyDataLoader, ImageTextDataLoader
 if torch.cuda.is_available():  
     device = "cuda:0"
     torch.set_default_tensor_type(torch.cuda.FloatTensor)
+    torch.cuda.empty_cache()
+    torch.cuda.set_per_process_memory_fraction(1.0, device=device)
 else:  
     device = "cpu" 
 
 print(device)
-    
-torch.cuda.empty_cache()
-#Generator initialised with feature_size set to 512 as that is the size for jde, if we switch to a different peekingduck model, rmb to change
+
+#Generator initialised with feature_size set to 10 as that is the size for mtcnn
 G=Generator(10).to(device)
 D=Discerner(device=device).to(device)
 
@@ -42,18 +43,19 @@ D_optim=torch.optim.Adam(D.parameters(),lr=D_lr,amsgrad=True)
 initial_epoch = 0
 load_model_from_checkpoint = True
 if load_model_from_checkpoint:
-    G_checkpoint = torch.load((model_folder + "generator.pt"))
-    G.load_state_dict(G_checkpoint['model_state_dict'])
-    G_optim.load_state_dict(G_checkpoint['optimizer_state_dict'])
+    # G_checkpoint = torch.load((model_folder + "generator.pt"))
+    # G.load_state_dict(G_checkpoint['model_state_dict'])
+    # G_optim.load_state_dict(G_checkpoint['optimizer_state_dict'])
 
     D_checkpoint = torch.load((model_folder + "discerner.pt"))
     D.load_state_dict(D_checkpoint['model_state_dict'])
     D_optim.load_state_dict(D_checkpoint['optimizer_state_dict'])
     
     initial_epoch = D_checkpoint['epoch']+1
-    ImageOnlyDataset=ImageOnlyDataLoader(data_content_folder+"annDataset", data_queue=G_checkpoint['loader_queue'], random_generator=G_checkpoint['loader_rng'])
+    #ImageOnlyDataset=ImageOnlyDataLoader(data_content_folder+"annDataset", data_queue=G_checkpoint['loader_queue'], random_generator=G_checkpoint['loader_rng'])
     ImageTextDataset=ImageTextDataLoader(data_content_folder+"annDataset/Annotations.json", data_queue=D_checkpoint['loader_queue'], random_generator=D_checkpoint['loader_rng']) 
-
+    #del G_checkpoint
+    del D_checkpoint
 
 preprocess=Preprocessor()
 torch.random.manual_seed(0)
@@ -84,18 +86,24 @@ for epoch in range(initial_epoch, epochs):
         print(final_text[0])
         G_loss=-torch.sum(rewards*torch.log(probs[0]))
         print("Generator loss:", G_loss)
-        if G_loss == 0:
-          print('Generator stuck in cycle, doubling temperature')
-          sampling_temperature*=2
-          monte_carlo_sampling_temperature=10*sampling_temperature
-          print(sampling_temperature, monte_carlo_sampling_temperature)
+        # if G_loss == 0:
+        #   print('Generator stuck in cycle, doubling temperature')
+        #   sampling_temperature*=2
+        #   monte_carlo_sampling_temperature=10*sampling_temperature
+        #   print(sampling_temperature, monte_carlo_sampling_temperature)
         G_loss.backward()
         G_optim.step()
 
         D_optim.zero_grad()
+        D_loss=D.forward(image,final_text,attitudes)[0][0]
+        print("Discerner loss on fake data:", D_loss)
+        D_loss.backward()
+        D_optim.step()
+
+        D_optim.zero_grad()
         d_image,d_text,d_attitude=next(ImageTextDataset)
-        D_loss=-(D.forward([d_image],[d_text],[d_attitude])[0][0]-D.forward(image,final_text,attitudes)[0][0])
-        print("Discerner loss:", D_loss)
+        D_loss=-D.forward([d_image],[d_text],[d_attitude])[0][0]
+        print("Discerner loss on real data:", D_loss)
         D_loss.backward()
         D_optim.step()
 

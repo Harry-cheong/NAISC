@@ -74,7 +74,7 @@ class ImageTextDataLoader:
             self.data_queue=self.dataset.copy()
             self.rng.shuffle(self.data_queue)
         else:
-            self.dataset=data_queue
+            self.data_queue=data_queue
                 
     def __next__(self):
         if not self.data_queue:
