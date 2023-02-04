@@ -40,18 +40,18 @@ G_optim=torch.optim.Adam(G.parameters(),lr=G_lr,amsgrad=True)
 D_optim=torch.optim.Adam(D.parameters(),lr=D_lr,amsgrad=True)
 
 initial_epoch = 0
-load_model_from_checkpoint = False
+load_model_from_checkpoint = True
 if load_model_from_checkpoint:
-    # G_checkpoint = torch.load((model_folder + "generator.pt"))
-    # G.load_state_dict(G_checkpoint['model_state_dict'])
-    # G_optim.load_state_dict(G_checkpoint['optimizer_state_dict'])
+    G_checkpoint = torch.load((model_folder + "generator.pt"))
+    G.load_state_dict(G_checkpoint['model_state_dict'])
+    G_optim.load_state_dict(G_checkpoint['optimizer_state_dict'])
 
     D_checkpoint = torch.load((model_folder + "discerner.pt"))
     D.load_state_dict(D_checkpoint['model_state_dict'])
     D_optim.load_state_dict(D_checkpoint['optimizer_state_dict'])
     
     initial_epoch = D_checkpoint['epoch']+1
-    #ImageOnlyDataset=ImageOnlyDataLoader(data_content_folder+"annDataset", data_queue=G_checkpoint['loader_queue'], random_generator=G_checkpoint['loader_rng'])
+    ImageOnlyDataset=ImageOnlyDataLoader(data_content_folder+"annDataset", data_queue=G_checkpoint['loader_queue'], random_generator=G_checkpoint['loader_rng'])
     ImageTextDataset=ImageTextDataLoader(data_content_folder+"annDataset/Annotations.json", data_queue=D_checkpoint['loader_queue'], random_generator=D_checkpoint['loader_rng']) 
 
 
@@ -85,7 +85,7 @@ for epoch in range(initial_epoch, epochs):
         G_loss=-torch.sum(rewards*torch.log(probs[0]))
         print("Generator loss:", G_loss)
         if G_loss == 0:
-          print('Generator stuck in cycle, doubling temperatures')
+          print('Generator stuck in cycle, doubling temperature')
           sampling_temperature*=2
           monte_carlo_sampling_temperature=10*sampling_temperature
           print(sampling_temperature, monte_carlo_sampling_temperature)
@@ -112,7 +112,7 @@ for epoch in range(initial_epoch, epochs):
             'loss': G_loss,
             'loader_queue': ImageOnlyDataset.data_queue,
             'loader_rng': ImageOnlyDataset.rng
-        }, (model_folder + f"generator_{epoch+1}.pt"))
+        }, (model_folder + "generator.pt"))
 
         torch.save({
             'epoch': epoch,
@@ -121,5 +121,5 @@ for epoch in range(initial_epoch, epochs):
             'loss': D_loss,
             'loader_queue': ImageTextDataset.data_queue,
             'loader_rng': ImageTextDataset.rng
-        }, (model_folder + f"discerner_{epoch+1}.pt"))
+        }, (model_folder + "discerner.pt"))
 print(f'{skipped} epochs have been skipped')
