@@ -3,7 +3,6 @@ from peekingduck_process.preprocess_image import Preprocessor
 from GAN.discern import Discerner
 from GAN.generate import Generator
 from dataloader import ImageOnlyDataLoader, ImageTextDataLoader
-import torch.nn.functional as F
 
 if torch.cuda.is_available():  
     device = "cuda:0"
@@ -13,7 +12,7 @@ else:
 
 print(device)
     
-
+torch.cuda.empty_cache()
 #Generator initialised with feature_size set to 512 as that is the size for jde, if we switch to a different peekingduck model, rmb to change
 G=Generator(10).to(device)
 D=Discerner(device=device).to(device)
@@ -22,7 +21,7 @@ D=Discerner(device=device).to(device)
 epochs=10000
 max_sequence_length = 20
 monte_carlo_iterations=10
-sampling_temperature = 0.5
+sampling_temperature = 1.0
 monte_carlo_sampling_temperature = 10.0
 G_lr=0.01
 D_lr=0.01
@@ -41,7 +40,7 @@ G_optim=torch.optim.Adam(G.parameters(),lr=G_lr,amsgrad=True)
 D_optim=torch.optim.Adam(D.parameters(),lr=D_lr,amsgrad=True)
 
 initial_epoch = 0
-load_model_from_checkpoint = True
+load_model_from_checkpoint = False
 if load_model_from_checkpoint:
     # G_checkpoint = torch.load((model_folder + "generator.pt"))
     # G.load_state_dict(G_checkpoint['model_state_dict'])
@@ -56,8 +55,6 @@ if load_model_from_checkpoint:
     ImageTextDataset=ImageTextDataLoader(data_content_folder+"annDataset/Annotations.json", data_queue=D_checkpoint['loader_queue'], random_generator=D_checkpoint['loader_rng']) 
 
 
-FAKE_DATA_PROB=torch.tensor([[0.0,1.0]])
-REAL_DATA_PROB=torch.tensor([[1.0,0.0]])
 preprocess=Preprocessor()
 torch.random.manual_seed(0)
 skipped=0
@@ -67,7 +64,6 @@ for epoch in range(initial_epoch, epochs):
         print(f"EPOCH {epoch+1}")
         features=[]
         while features==[]:
-            #reset to new proprocessor because jde has memory, luckily peeking duck does not need to redownload unlike SOME libraries
             image=next(ImageOnlyDataset)
             image, features=preprocess(image)
             if features:
@@ -81,30 +77,29 @@ for epoch in range(initial_epoch, epochs):
                 realness=torch.tensor([])
                 for _ in range(monte_carlo_iterations):
                     new_text=G.forward(features,attitudes,G.tokens.batch_decode([toks[0][:remaining_length]],skip_special_tokens=True),temperature=monte_carlo_sampling_temperature,return_probs=True,max_length=max_sequence_length-remaining_length-1,echo_input_text=True)[0]
-                    realness=torch.cat([realness,D.forward(image,G.tokens.batch_decode(new_text,skip_special_tokens=True),attitudes)[0][:1]],dim=0)
+                    realness=torch.cat([realness,D.forward(image,G.tokens.batch_decode(new_text,skip_special_tokens=True),attitudes)[0]],dim=0)
                 rewards=torch.cat([rewards,torch.mean(realness).unsqueeze(0)])
             final_text=G.tokens.batch_decode(toks,skip_special_tokens=True)
-            rewards=torch.cat([rewards,D.forward(image,final_text,attitudes)[0][:1]],dim=0)
+            rewards=torch.cat([rewards,D.forward(image,final_text,attitudes)[0]],dim=0)
         print(final_text[0])
         G_loss=-torch.sum(rewards*torch.log(probs[0]))
         print("Generator loss:", G_loss)
+        if G_loss == 0:
+          print('Generator stuck in cycle, doubling temperatures')
+          sampling_temperature*=2
+          monte_carlo_sampling_temperature=10*sampling_temperature
+          print(sampling_temperature, monte_carlo_sampling_temperature)
         G_loss.backward()
         G_optim.step()
 
         D_optim.zero_grad()
-        D_loss=F.binary_cross_entropy(D.forward(image,final_text,attitudes), FAKE_DATA_PROB)
-        print("Discerner loss on generated data:", D_loss)
-        D_loss.backward()
-        D_optim.step()
-
-        D_optim.zero_grad()
         d_image,d_text,d_attitude=next(ImageTextDataset)
-        D_loss=F.binary_cross_entropy(D.forward([d_image],[d_text],[d_attitude]), REAL_DATA_PROB)
-        print("Discerner loss on real data:", D_loss)
+        D_loss=-(D.forward([d_image],[d_text],[d_attitude])[0][0]-D.forward(image,final_text,attitudes)[0][0])
+        print("Discerner loss:", D_loss)
         D_loss.backward()
         D_optim.step()
 
-    except ValueError:
+    except (ValueError,TypeError):
         print('SOMETHING HAS GONE WRONG PLEASE FIX THIS SOON')
         skipped+=1
         print(f'{skipped} epochs have been skipped')
