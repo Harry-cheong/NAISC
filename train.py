@@ -22,9 +22,9 @@ D=Discerner(device=device).to(device)
 epochs=10000
 max_sequence_length = 20
 monte_carlo_iterations=10
-sampling_temperature = 8.5185512795006
-monte_carlo_sampling_temperature = 8.5185512795006
-decay_rate=1.01
+sampling_temperature = 100.0
+monte_carlo_sampling_temperature = 100.0
+decay_rate=1.1
 G_lr=0.01
 D_lr=0.01
 
@@ -63,6 +63,7 @@ preprocess=Preprocessor()
 torch.random.manual_seed(0)
 skipped=0
 #NOT batched because i dont care
+
 for epoch in range(initial_epoch, epochs):
     try:
         print(f"EPOCH {epoch+1}")
@@ -87,7 +88,7 @@ for epoch in range(initial_epoch, epochs):
             rewards=torch.cat([rewards,D.forward(image,final_text,attitudes)[0]],dim=0)
         
         print(final_text[0])
-        G_loss=-torch.sum(rewards*torch.log(probs[0]))
+        G_loss=-torch.sum(rewards*probs[0])
         print("Generator loss:", G_loss)
         G_loss.backward()
         G_optim.step()
