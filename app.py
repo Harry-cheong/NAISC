@@ -14,12 +14,14 @@ if torch.cuda.is_available():
 else:  
     device = "cpu" 
 
-vid = cv2.VideoCapture(0)
-cv2.namedWindow("frame")
+disclaimer = "This app is powered by an artifical intelligence that generates text, be it compliments \nor insults. The developers have put it utmost effort to ensure insults do not cause excessive \nharm, but we are unable to control what text may be displayed. By continuing to use this app, \nyou acknowledge the possibility that potentially hurtful text may be generated."
+
+
 G = Generator(10).to(device)
 # load pre-trained model
 preprocess=Preprocessor()
-
+vid = cv2.VideoCapture(0)
+cv2.namedWindow("frame")
 
 def generateTextFromImage(image, attitudes):
     image, features=preprocess(image)
@@ -34,7 +36,22 @@ def generateTextFromImage(image, attitudes):
 frame = []
 keep_running = True
 attitude = 0
+skip_disclaimer = False
 while keep_running:
+    if not skip_disclaimer:
+        ret, frame = vid.read()
+        cv2_im_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        pil_im = Image.fromarray(cv2_im_rgb)
+        draw = ImageDraw.Draw(pil_im)
+        font = ImageFont.truetype("Arial.ttf", 20)
+        bbox = draw.textbbox((10, 10), disclaimer, font=font)
+        draw.rectangle(bbox, fill="white")
+        draw.text((10, 10), disclaimer, font=font, fill="#000000")
+        cv2_im_processed = cv2.cvtColor(np.array(pil_im), cv2.COLOR_RGB2BGR)
+        cv2.imshow('frame', cv2_im_processed)
+        skip_disclaimer = True
+        k = cv2.waitKey(10)
+        time.sleep(5)
     while keep_running:
         ret, frame = vid.read()
         cv2.imshow('frame', frame)
@@ -54,9 +71,8 @@ while keep_running:
         draw = ImageDraw.Draw(pil_im)
         font = ImageFont.truetype("Arial.ttf", 20)
 
-        cv2.imwrite("img.png", frame)
         display_text = "Generating compliment..." if (attitude>0) else "Generating insult..."
-        draw.text((50, 50), display_text, font=font, fill="#000000")
+        draw.text((10, 10), display_text, font=font, fill="#000000")
         cv2_im_processed = cv2.cvtColor(np.array(pil_im), cv2.COLOR_RGB2BGR)
         cv2.imshow('frame', cv2_im_processed)
         k = cv2.waitKey(1)
@@ -66,7 +82,7 @@ while keep_running:
         draw = ImageDraw.Draw(pil_im)
         txt = generateTextFromImage(pil_im, torch.tensor([[attitude]]))
         print("\n", txt, "\n", sep="\n")
-        draw.text((50, 50), txt, font=font, fill="#000000")
+        draw.text((10, 10), txt, font=font, fill="#000000")
         cv2_im_processed = cv2.cvtColor(np.array(pil_im), cv2.COLOR_RGB2BGR)
         cv2.imshow('frame', cv2_im_processed)
         k = cv2.waitKey(1)
