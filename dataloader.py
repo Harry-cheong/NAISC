@@ -1,87 +1,84 @@
 from PIL import Image
 import random
 import json
-import time
+import pathlib
+import os
+import warnings
 
 class ImageOnlyDataLoader:
-    # used for generator
-    def __init__(self, JSONfilepath, total_epochs, curr_idx=0, seed=None, replaceDirSepChar=False, contentFolder=""):
-        # set replaceDirSepChar to True on non-Windows systems to replace \\ to /
-        self.rng_seed = int(time.time()) if seed is None else seed
-        random.seed(self.rng_seed)
-        self.idx = curr_idx
-        dataset = []
-        with open(JSONfilepath, "r") as file:
-            data = json.load(file)
-            if replaceDirSepChar:
-                dataset = [Image.open(contentFolder+data[key]['path'].replace("\\", "/")) for key in data.keys()]
-            else:
-                dataset = [Image.open(contentFolder+data[key]['path']) for key in data.keys()]
-        self.imgdata = []
-        for _ in range(len(dataset), total_epochs, len(dataset)):
-            random.shuffle(dataset)
-            self.imgdata += dataset
-        random.shuffle(dataset)
-        self.imgdata += dataset[:(total_epochs % len(dataset))]
-    def __iter__(self):
-        return self
+    #used for generator
+    def __init__(self, content_folder="", accepted_extensions=('.jpg', '.png', '.jpeg'),data_queue=None, random_generator=None, seed=None):
+        if (data_queue is None) != (random_generator is None):
+            warnings.warn('In order to resume data loading order, both "data_queue" and "random_generator" arguments must be provided', RuntimeWarning)
+        
+        self.path=pathlib.PurePath(content_folder)
+        self.dir=[f.name for f in os.scandir(self.path) if (f.is_file() and any(f.name.endswith(ext) for ext in accepted_extensions))]
+        if not self.dir:
+            raise FileNotFoundError('There are no accepted image files in the data directory')
+        
+        if random_generator is None:
+            self.rng=random.Random(seed)
+        else:
+            self.rng=random_generator
+
+        if data_queue is None:
+            self.data_queue=self.dir.copy()
+            self.rng.shuffle(self.data_queue)
+        else:
+            self.data_queue=data_queue
+    
     def __next__(self):
-        self.idx += 1
-        try:
-            return self.imgdata[self.idx-1]
-        except IndexError:
-            raise StopIteration
-    def __len__(self):
-        return len(self.imgdata)
-    def seed(self):
-        return self.rng_seed
-    next = __next__
+        for _ in range(2):
+            while self.data_queue:
+                try:
+                    return Image.open(str(self.path.joinpath(self.data_queue.pop())))
+                except FileNotFoundError:
+                    warnings.warn('Contents of data directory was modified', RuntimeWarning)
+            self.data_queue=self.dir.copy()
+            self.rng.shuffle(self.data_queue)
+        raise FileNotFoundError('There are no accepted image files in the data directory')
+        
 
 class ImageTextDataLoader:
     # used for discerner
-    def __init__(self, JSONfilepath, total_epochs, curr_idx=0, seed=None, replaceDirSepChar=False, skipUnratedStatements=False, contentFolder=""):
-        # set replaceDirSepChar to True on non-Windows systems to replace \\ to /
-        self.rng_seed = int(time.time()) if seed is None else seed
-        random.seed(self.rng_seed)
-        self.idx = curr_idx
-        dataset = []
+    def __init__(self, JSONfilepath, skipUnratedStatements=False, data_queue=None, random_generator=None, seed=None):
+        if (data_queue is None) != (random_generator is None):
+            warnings.warn('In order to resume data loading order, both "data_queue" and "random_generator" arguments must be provided', RuntimeWarning)
+        self.path=pathlib.PurePath(JSONfilepath).parent
+        if random_generator is None:
+            self.rng=random.Random(seed)
+        else:
+            self.rng=random_generator
+        self.dataset = []
         with open(JSONfilepath, "r") as file:
             data = json.load(file)
-            for key in data.keys():
-                data_dict = data[key]
-                imgpath = contentFolder + (data_dict['path'].replace("\\", "/") if replaceDirSepChar else data_dict['path'])
+            for data_dict in data.values():
+                imgpath = pathlib.PurePath(*data_dict['path'].split('\\'))
                 for insult in data_dict['insults']:
                     if "~" not in insult and not skipUnratedStatements:
-                        raise ValueError("Unrated statment occured, use ~ to rate statements")
+                        raise ValueError("Unrated statment found, use ~ to rate statements")
                     elif "~" not in insult:
                         continue
                     statement, attitude = insult.split("~")
                     attitude = -float(attitude)
-                    dataset.append((Image.open(imgpath), statement, attitude))
+                    self.dataset.append((imgpath, statement, attitude))
                 for compliment in data_dict['compliments']:
                     if "~" not in compliment and not skipUnratedStatements:
-                        raise ValueError("Unrated statment occured, use ~ to rate statements")
+                        raise ValueError("Unrated statment found, use ~ to rate statements")
                     elif "~" not in compliment:
                         continue
                     statement, attitude = compliment.split("~")
                     attitude = float(attitude)
-                    dataset.append((Image.open(imgpath), statement, attitude))
-        self.imgtxtdata = []
-        for _ in range(len(dataset), total_epochs, len(dataset)):
-            random.shuffle(dataset)
-            self.imgtxtdata += dataset
-        random.shuffle(dataset)
-        self.imgtxtdata += dataset[:(total_epochs % len(dataset))]
-    def __iter__(self):
-        return self
+                    self.dataset.append((imgpath, statement, attitude))
+        if data_queue is None:
+            self.data_queue=self.dataset.copy()
+            self.rng.shuffle(self.data_queue)
+        else:
+            self.data_queue=data_queue
+                
     def __next__(self):
-        self.idx += 1
-        try:
-            return self.imgtxtdata[self.idx-1]
-        except IndexError:
-            raise StopIteration
-    def __len__(self):
-        return len(self.imgtxtdata)
-    def seed(self):
-        return self.rng_seed
-    next = __next__
+        if not self.data_queue:
+            self.data_queue=self.dataset.copy()
+            self.rng.shuffle(self.data_queue)
+        imgpath, statement, attitude=self.data_queue.pop()
+        return Image.open(str(imgpath)), statement, attitude
