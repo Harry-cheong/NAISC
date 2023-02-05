@@ -77,4 +77,7 @@ class Discerner(torch.nn.Module):
     def _normalise_scores(self,score):
         q=(score*self.shape_param)/2
         p=torch.sqrt(q**2+self.shape_const1)
-        return torch.pow(q+p,1/3)+torch.pow(q-p,1/3)
+        a=q-p
+        if a < 0:
+            return torch.pow(q+p,1/3)-torch.pow(-a,1/3)
+        return torch.pow(q+p,1/3)+torch.pow(a,1/3)
