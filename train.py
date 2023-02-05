@@ -22,8 +22,9 @@ D=Discerner(device=device).to(device)
 epochs=10000
 max_sequence_length = 20
 monte_carlo_iterations=10
-sampling_temperature = 1.0
-monte_carlo_sampling_temperature = 10.0
+sampling_temperature = 8.5185512795006
+monte_carlo_sampling_temperature = 8.5185512795006
+decay_rate=1.01
 G_lr=0.01
 D_lr=0.01
 
@@ -43,19 +44,20 @@ D_optim=torch.optim.Adam(D.parameters(),lr=D_lr,amsgrad=True)
 initial_epoch = 0
 load_model_from_checkpoint = True
 if load_model_from_checkpoint:
-    # G_checkpoint = torch.load((model_folder + "generator.pt"))
-    # G.load_state_dict(G_checkpoint['model_state_dict'])
-    # G_optim.load_state_dict(G_checkpoint['optimizer_state_dict'])
+
+    G_checkpoint = torch.load((model_folder + "generator.pt"))
+    G.load_state_dict(G_checkpoint['model_state_dict'])
+    G_optim.load_state_dict(G_checkpoint['optimizer_state_dict'])
+    ImageOnlyDataset=ImageOnlyDataLoader(data_content_folder+"annDataset", data_queue=G_checkpoint['loader_queue'], random_generator=G_checkpoint['loader_rng'])
+    del G_checkpoint
 
     D_checkpoint = torch.load((model_folder + "discerner.pt"))
     D.load_state_dict(D_checkpoint['model_state_dict'])
     D_optim.load_state_dict(D_checkpoint['optimizer_state_dict'])
-    
     initial_epoch = D_checkpoint['epoch']+1
-    #ImageOnlyDataset=ImageOnlyDataLoader(data_content_folder+"annDataset", data_queue=G_checkpoint['loader_queue'], random_generator=G_checkpoint['loader_rng'])
     ImageTextDataset=ImageTextDataLoader(data_content_folder+"annDataset/Annotations.json", data_queue=D_checkpoint['loader_queue'], random_generator=D_checkpoint['loader_rng']) 
-    #del G_checkpoint
     del D_checkpoint
+
 
 preprocess=Preprocessor()
 torch.random.manual_seed(0)
@@ -72,27 +74,28 @@ for epoch in range(initial_epoch, epochs):
                 features=torch.tensor(features[0],dtype=torch.float).unsqueeze(0)
         attitudes=(2*torch.rand(1,1)-1)
         G_optim.zero_grad()
-        toks, probs = G.forward(features, attitudes,max_length=max_sequence_length,temperature=sampling_temperature,return_probs=True)
+        toks, probs = G.forward(features, attitudes,max_length=max_sequence_length,temperature=sampling_temperature+1,return_probs=True)
         rewards=torch.tensor([])
         with torch.no_grad():
             for remaining_length in range(1,len(toks[0])):
                 realness=torch.tensor([])
                 for _ in range(monte_carlo_iterations):
-                    new_text=G.forward(features,attitudes,G.tokens.batch_decode([toks[0][:remaining_length]],skip_special_tokens=True),temperature=monte_carlo_sampling_temperature,return_probs=True,max_length=max_sequence_length-remaining_length-1,echo_input_text=True)[0]
+                    new_text=G.forward(features,attitudes,G.tokens.batch_decode([toks[0][:remaining_length]],skip_special_tokens=True),temperature=monte_carlo_sampling_temperature+1,return_probs=True,max_length=max_sequence_length-remaining_length,echo_input_text=True)[0]
                     realness=torch.cat([realness,D.forward(image,G.tokens.batch_decode(new_text,skip_special_tokens=True),attitudes)[0]],dim=0)
                 rewards=torch.cat([rewards,torch.mean(realness).unsqueeze(0)])
             final_text=G.tokens.batch_decode(toks,skip_special_tokens=True)
             rewards=torch.cat([rewards,D.forward(image,final_text,attitudes)[0]],dim=0)
+        
         print(final_text[0])
         G_loss=-torch.sum(rewards*torch.log(probs[0]))
         print("Generator loss:", G_loss)
-        # if G_loss == 0:
-        #   print('Generator stuck in cycle, doubling temperature')
-        #   sampling_temperature*=2
-        #   monte_carlo_sampling_temperature=10*sampling_temperature
-        #   print(sampling_temperature, monte_carlo_sampling_temperature)
         G_loss.backward()
         G_optim.step()
+
+        print('Cooling')
+        sampling_temperature /= decay_rate
+        monte_carlo_sampling_temperature /= decay_rate
+        print('Temperatures:',sampling_temperature, monte_carlo_sampling_temperature)
 
         D_optim.zero_grad()
         D_loss=D.forward(image,final_text,attitudes)[0][0]
