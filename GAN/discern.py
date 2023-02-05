@@ -18,9 +18,11 @@ if torch.cuda.is_available():
     torch.set_default_tensor_type(torch.cuda.FloatTensor)
 
 class Discerner(torch.nn.Module):
-    def __init__(self,start_token='<z>',device='cpu'):
+    def __init__(self,start_token='<z>',device='cpu',shape_param=10.0):
         super().__init__()
         #initialise all the models
+        self.shape_const1=shape_param**3/27
+        self.shape_param=shape_param
         self.start=start_token
         self.device=device
         tokenizer = SenticGCNBertTokenizer.from_pretrained("bert-base-uncased")
@@ -70,4 +72,9 @@ class Discerner(torch.nn.Module):
             processed_sentiments.append(tensor[index-1].unsqueeze(0))
         processed_sentiments=torch.cat([torch.cat(processed_sentiments),attitude],dim=1)
         all_features=torch.cat((clip_features,self.sentiment_attitude_corr(processed_sentiments)),dim=1)
-        return self.discern(all_features)
+        return self._normalis_scores(self.discern(all_features))
+
+    def _normalise_scores(self,score):
+        q=(score*self.shape_param)/2
+        p=torch.sqrt(q**2+self.shape_const1)
+        return torch.pow(q+p,1/3)+torch.pow(q-p,1/3)
