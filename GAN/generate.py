@@ -8,7 +8,7 @@ if torch.cuda.is_available():
 class Generator(torch.nn.Module):
     def __init__(self,feature_size):
         super().__init__()
-        self.tokens=AutoTokenizer.from_pretrained('facebook/opt-350m', padding_side='left')
+        self.tokens=AutoTokenizer.from_pretrained('facebook/opt-350m', padding_side='left', use_fast=True)
         config=AutoConfig.from_pretrained('facebook/opt-350m')
         self.text_model=OPTForCausalLM(config).from_pretrained('facebook/opt-350m')
         self.embeds=self.text_model.get_input_embeddings()
