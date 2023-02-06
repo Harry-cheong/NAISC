@@ -73,7 +73,7 @@ while keep_running:
         ret, frame = vid.read()
         pil_im, draw = capture(frame)
 
-        cv2_im_processed = vidtxt(disclaimer)
+        cv2_im_processed = vidtxt(disclaimer, wrap=False)
         cv2.imshow('frame', cv2_im_processed)
 
         skip_disclaimer = True
