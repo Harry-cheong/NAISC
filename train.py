@@ -9,7 +9,7 @@ if torch.cuda.is_available():
     torch.set_default_tensor_type(torch.cuda.FloatTensor)
     torch.cuda.empty_cache()
     torch.cuda.set_per_process_memory_fraction(1.0, device=device)
-else:  
+else: 
     device = "cpu" 
 
 print(device)
@@ -42,7 +42,7 @@ G_optim=torch.optim.Adam(G.parameters(),lr=G_lr,amsgrad=True)
 D_optim=torch.optim.Adam(D.parameters(),lr=D_lr,amsgrad=True)
 
 initial_epoch = 0
-load_model_from_checkpoint = True
+load_model_from_checkpoint = False
 if load_model_from_checkpoint:
 
     G_checkpoint = torch.load((model_folder + "generator.pt"))
@@ -65,56 +65,55 @@ skipped=0
 #NOT batched because i dont care
 
 for epoch in range(initial_epoch, epochs):
-    try:
-        print(f"EPOCH {epoch+1}")
-        features=[]
-        while features==[]:
-            image=next(ImageOnlyDataset)
-            image, features=preprocess(image)
-            if features:
-                features=torch.tensor(features[0],dtype=torch.float).unsqueeze(0)
-        attitudes=(2*torch.rand(1,1)-1)
-        G_optim.zero_grad()
-        toks, probs = G.forward(features, attitudes,max_length=max_sequence_length,temperature=sampling_temperature+1,return_probs=True)
-        rewards=torch.tensor([])
-        with torch.no_grad():
-            for remaining_length in range(1,len(toks[0])):
-                realness=torch.tensor([])
-                for _ in range(monte_carlo_iterations):
-                    new_text=G.forward(features,attitudes,G.tokens.batch_decode([toks[0][:remaining_length]],skip_special_tokens=True),temperature=monte_carlo_sampling_temperature+1,return_probs=True,max_length=max_sequence_length-remaining_length,echo_input_text=True)[0]
-                    realness=torch.cat([realness,D.forward(image,G.tokens.batch_decode(new_text,skip_special_tokens=True),attitudes)[0]],dim=0)
-                rewards=torch.cat([rewards,torch.mean(realness).unsqueeze(0)])
-            final_text=G.tokens.batch_decode(toks,skip_special_tokens=True)
-            rewards=torch.cat([rewards,D.forward(image,final_text,attitudes)[0]],dim=0)
-        
-        print(final_text[0])
-        G_loss=-torch.sum(rewards*probs[0])
-        print("Generator loss:", G_loss)
-        G_loss.backward()
-        G_optim.step()
+    #try:
+    print(f"EPOCH {epoch+1}")
+    features=[]
+    while features==[]:
+        image=next(ImageOnlyDataset)
+        image, features=preprocess(image)
+        if features:
+            features=torch.tensor(features[0],dtype=torch.float).unsqueeze(0)
+    attitudes=(2*torch.rand(1,1)-1)
+    G_optim.zero_grad()
+    toks, probs = G.forward(features, attitudes,max_length=max_sequence_length,temperature=sampling_temperature+1,return_probs=True)
+    rewards=torch.tensor([])
+    with torch.no_grad():
+        realness=[]
+        for remaining_length in range(1,len(toks[0])):
+            new_text=G.forward(features.repeat(monte_carlo_iterations,1),attitudes.repeat(monte_carlo_iterations,1),G.tokens.batch_decode([t[:remaining_length] for t in toks],skip_special_tokens=True)*monte_carlo_iterations,temperature=monte_carlo_sampling_temperature+1,return_probs=True,max_length=max_sequence_length-remaining_length,echo_input_text=True)[0]
+            realness.append(torch.mean(D.forward(image*monte_carlo_iterations,G.tokens.batch_decode(new_text,skip_special_tokens=True),attitudes.repeat(monte_carlo_iterations,1))[:][0]).unsqueeze(0))
+        final_text=G.tokens.batch_decode(toks,skip_special_tokens=True)
+        rewards=torch.cat(realness+[D.forward(image,final_text,attitudes)[0]],dim=0)
+    
+    print(final_text[0])
+    G_loss=-torch.sum(rewards*probs[0])
+    print("Generator loss:", G_loss)
+    G_loss.backward()
+    G_optim.step()
 
-        print('Cooling')
-        sampling_temperature /= decay_rate
-        monte_carlo_sampling_temperature /= decay_rate
-        print('Temperatures:',sampling_temperature, monte_carlo_sampling_temperature)
+    print('Cooling')
+    sampling_temperature /= decay_rate
+    monte_carlo_sampling_temperature /= decay_rate
+    print('Temperatures:',sampling_temperature, monte_carlo_sampling_temperature)
 
-        D_optim.zero_grad()
-        D_loss=D.forward(image,final_text,attitudes)[0][0]
-        print("Discerner loss on fake data:", D_loss)
-        D_loss.backward()
-        D_optim.step()
+    D_optim.zero_grad()
+    D_loss=D.forward(image,final_text,attitudes)[0][0]
+    print("Discerner loss on fake data:", D_loss)
+    D_loss.backward()
+    D_optim.step()
 
-        D_optim.zero_grad()
-        d_image,d_text,d_attitude=next(ImageTextDataset)
-        D_loss=-D.forward([d_image],[d_text],[d_attitude])[0][0]
-        print("Discerner loss on real data:", D_loss)
-        D_loss.backward()
-        D_optim.step()
+    D_optim.zero_grad()
+    d_image,d_text,d_attitude=next(ImageTextDataset)
+    D_loss=-D.forward([d_image],[d_text],[d_attitude])[0][0]
+    print("Discerner loss on real data:", D_loss)
+    D_loss.backward()
+    D_optim.step()
 
-    except (ValueError,TypeError):
-        print('SOMETHING HAS GONE WRONG PLEASE FIX THIS SOON')
-        skipped+=1
-        print(f'{skipped} epochs have been skipped')
+    # except (ValueError,TypeError) as e:
+    #     print(e)
+    #     print('SOMETHING HAS GONE WRONG PLEASE FIX THIS SOON')
+    #     skipped+=1
+    #     print(f'{skipped} epochs have been skipped')
     
     if (epoch+1) % epoch_checkpoint == 0 or epoch == epochs:
         torch.save({
