@@ -41,6 +41,6 @@ Disclaimer: This app is powered by an artifical intelligence that generates text
 1. When the app is first launched, a disclaimer is shown. Press any key to dismiss the disclaimer.
 2. Smile, wave, or simply face the camera, and when you're ready, press `c` to generate a compliment, or `i` to generate an insult.
 3. After it has finished generating, it will read out the statement and display it on the screen (remember to turn up your volume!)
-4. You may continuously use the app, or press `q` to quite.
+4. You may continuously use the app, or press `q` to quit.
 
 Warning: It is a known issue that the app instantly closes after generating one statement on macOS. Please run this code on a Windows system instead.
