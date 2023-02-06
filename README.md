@@ -12,7 +12,16 @@ An Artifical Intelligence capable of generating entertaining compliments or insu
 
 2. General Adversial Network GAN AI
 
-   Done primarily with `sgnlp` and `pytorch`
+   Generator (`GAN/generate.py`): Relies on `peekingduck_process/preprocess_image.py` which preprocesses the image using `peekingduck`, before OPT is used to generate a statement
+   Discerner (`GAN/discern.py`): Uses `SGNLP` and `CLIP` to determine how 'real' a statement is compared to the image
+
+3. Training
+
+    The Generator and Discerner are ran in a loop to attempt to continuously optimise both the Generator and Discerner
+
+4. App
+
+    The app uses the webcam to capture an image which is then fed to the generator to generate the statement.
 
 ## App setup
 Disclaimer: This app is powered by an artifical intelligence that generates text, be it compliments or insults. The developers have put it utmost effort to ensure insults do not cause excessive harm, but we are unable to control what text may be displayed. By continuing to use this app, you acknowledge the possibility that potentially hurtful text may be generated.
