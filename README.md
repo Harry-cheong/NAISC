@@ -36,6 +36,7 @@ Disclaimer: This app is powered by an artifical intelligence that generates text
     ```
     If the installation order is followed, you may safely ignore warnings about dependency version conflicts. It is best to start with a clean version of python with no pre-installed packages.
 3. Run `python3.9 app.py` and wait for the window to launch
+Note: The app loads an untrained generator model due to file size limiations on Github and RAM limitations. You may find the model checkpoints uploaded on Google Drive here: [https://drive.google.com/drive/folders/1F5Znp-fasrPhR_1y-CXTME8nyVdNEob5?usp=share_link](https://drive.google.com/drive/folders/1F5Znp-fasrPhR_1y-CXTME8nyVdNEob5?usp=share_link)
 
 ## Using the app
 1. When the app is first launched, a disclaimer is shown. Press any key to dismiss the disclaimer.
